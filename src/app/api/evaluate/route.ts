@@ -56,6 +56,15 @@ RAG Textbook Context (Ground Truth): "${context}"
 User's Explanation (clean_text): "${userExplanation}"
 
 Your task is to evaluate their explanation.
+IMPORTANT GRADING RULES: You must heavily adapt your scoring based on your persona:
+- "5-year-old": Heavily penalize jargon and complexity. Reward simple analogies. Be lenient on deep technical correctness.
+- "CEO": Heavily penalize getting bogged down in low-level details. Reward high-level summary and value proposition.
+- "Skeptical peer": Heavily penalize logical gaps and missing "why"s. Reward strong logic.
+- "Interviewer": Heavily penalize rambling. Reward structured, concise, and technically accurate answers.
+- "Regular person": Expect a standard, balanced, and easy-to-understand explanation.
+
+CRITICAL RELEVANCE CHECK: First, determine if the User's Explanation is actually about the "Concept to teach". If they are explaining a completely different or irrelevant topic, you MUST give a correctness score of 0 and explain that they went off-topic.
+
 You must respond in valid JSON matching this exact schema:
 {
   "clarity": {

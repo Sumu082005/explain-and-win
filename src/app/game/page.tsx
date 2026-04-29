@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, Bot, User, Loader2, RefreshCcw, Target, Edit2 } from "lucide-react";
+import { Send, Bot, User, Loader2, RefreshCcw, Target, Edit2, BookOpen } from "lucide-react";
 import Link from "next/link";
 import confetti from "canvas-confetti";
+import ReactMarkdown from "react-markdown";
 
 interface ScoreDetail {
   score: number;
@@ -39,7 +40,11 @@ export default function GameArena() {
 
   const [concept, setConcept] = useState("");
   const [ragContext, setRagContext] = useState("");
+  const [persona, setPersona] = useState("Regular person (standard explanation)");
   const [isConceptSet, setIsConceptSet] = useState(false);
+  
+  const [studyReport, setStudyReport] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +60,8 @@ export default function GameArena() {
         body: JSON.stringify({ 
           concept, 
           clean_text: explanation,
-          context: ragContext || "No specific textbook context provided."
+          context: ragContext || "No specific textbook context provided.",
+          persona
         }),
       });
       const data = await res.json();
@@ -64,6 +70,25 @@ export default function GameArena() {
       console.error("Evaluation failed", error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const generateReport = async () => {
+    setIsGeneratingReport(true);
+    try {
+      const res = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concept, context: ragContext, persona }),
+      });
+      const data = await res.json();
+      if (data.report) {
+        setStudyReport(data.report);
+      }
+    } catch (error) {
+      console.error("Report generation failed", error);
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
@@ -79,17 +104,20 @@ export default function GameArena() {
         </Link>
         {isConceptSet && (
           <div className="flex items-center gap-3">
-            <div className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm">
-              Topic: <span className="text-primary-400 font-medium">{concept}</span>
+            <div className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm flex gap-4">
+              <span>Topic: <span className="text-primary-400 font-medium">{concept}</span></span>
+              <span className="text-white/20">|</span>
+              <span>Audience: <span className="text-primary-400 font-medium">{persona}</span></span>
             </div>
             <button 
               onClick={() => {
                 setIsConceptSet(false);
                 setResult(null);
                 setExplanation("");
+                setStudyReport(null);
               }}
               className="p-1.5 rounded-full hover:bg-white/10 text-slate-400 transition-colors"
-              title="Change Topic"
+              title="Change Setup"
             >
               <Edit2 className="w-4 h-4" />
             </button>
@@ -132,6 +160,21 @@ export default function GameArena() {
                 </div>
                 
                 <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Target Audience (Persona)</label>
+                  <select
+                    value={persona}
+                    onChange={(e) => setPersona(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-black/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="Regular person (standard explanation)">👤 Regular person (standard explanation)</option>
+                    <option value="5-year-old (no jargon)">👶 5-year-old (no jargon)</option>
+                    <option value="CEO (business relevance)">💼 CEO (business relevance)</option>
+                    <option value="Skeptical peer ('but why?' loop)">😈 Skeptical peer ("but why?" loop)</option>
+                    <option value="Interviewer (clear + structured)">🎤 Interviewer (clear + structured)</option>
+                  </select>
+                </div>
+                
+                <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Textbook Context (RAG Input) <span className="text-slate-500 font-normal">- Optional</span></label>
                   <textarea
                     value={ragContext}
@@ -167,8 +210,8 @@ export default function GameArena() {
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm p-4 text-slate-300 leading-relaxed shadow-lg">
                 <p>
-                  Hey! I'm trying to learn about <strong className="text-white">{concept}</strong> but I'm completely stuck. 
-                  Can you explain it to me like I'm a beginner? Use analogies if possible!
+                  Hey! I'm trying to learn about <strong className="text-white">{concept}</strong>. 
+                  Can you explain it to me? Remember, I am acting as a <strong>{persona}</strong>!
                 </p>
               </div>
             </motion.div>
@@ -247,7 +290,45 @@ export default function GameArena() {
 
         {/* Right Column: Score Meters & Feedback */}
         <div className="flex flex-col justify-center">
-          {result ? (
+          {isGeneratingReport ? (
+             <div className="h-full border border-primary-500/30 rounded-3xl flex flex-col items-center justify-center p-12 text-center bg-primary-950/20">
+                <Loader2 className="w-12 h-12 text-primary-400 animate-spin mb-6" />
+                <h3 className="text-xl font-medium text-primary-300 mb-2">Generating Practice Report...</h3>
+                <p className="text-primary-400/60 text-sm max-w-sm">
+                  The AI is analyzing your chosen topic and audience to create a personalized study guide.
+                </p>
+             </div>
+          ) : studyReport ? (
+             <motion.div
+               initial={{ opacity: 0, scale: 0.95 }}
+               animate={{ opacity: 1, scale: 1 }}
+               className="p-8 rounded-3xl border relative overflow-hidden bg-blue-950/20 border-blue-500/30 h-full flex flex-col"
+             >
+               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
+                 <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                   <BookOpen className="w-6 h-6 text-blue-400" />
+                 </div>
+                 <div>
+                   <h2 className="text-2xl font-bold text-white">Your Personal Study Guide</h2>
+                   <p className="text-blue-300 text-sm">Review this before trying again.</p>
+                 </div>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto custom-scrollbar pr-4 text-slate-300 prose prose-invert prose-blue max-w-none">
+                 <ReactMarkdown>{studyReport}</ReactMarkdown>
+               </div>
+               
+               <button
+                 onClick={() => {
+                   setStudyReport(null);
+                 }}
+                 className="w-full py-4 mt-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center justify-center gap-2 font-medium"
+               >
+                 <RefreshCcw className="w-5 h-5" />
+                 I'm Ready to Explain
+               </button>
+             </motion.div>
+          ) : result ? (
             result.error ? (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -309,15 +390,28 @@ export default function GameArena() {
             </motion.div>
             )
           ) : (
-             <div className="h-full border border-dashed border-white/10 rounded-3xl flex items-center justify-center p-12 text-center bg-white/[0.02]">
+             <div className="h-full border border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center p-12 text-center bg-white/[0.02]">
                 <div className="max-w-xs space-y-4">
                   <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-6">
                     <Target className="w-8 h-8 text-slate-500" />
                   </div>
                   <h3 className="text-xl font-medium text-slate-300">Awaiting Your Input</h3>
-                  <p className="text-slate-500 text-sm">
+                  <p className="text-slate-500 text-sm mb-6">
                     Submit your explanation to see how well you score in Clarity, Structure, and Correctness.
                   </p>
+                  
+                  <div className="pt-6 border-t border-white/10 w-full">
+                    <button
+                      onClick={generateReport}
+                      className="w-full py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                    >
+                      <BookOpen className="w-4 h-4 text-blue-400" />
+                      Generate Practice Report
+                    </button>
+                    <p className="text-slate-500 text-xs mt-3">
+                      Need help preparing? Get a custom study guide for your target audience.
+                    </p>
+                  </div>
                 </div>
              </div>
           )}
